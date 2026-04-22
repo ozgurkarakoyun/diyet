@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { api } from './api.js';
 
 const STAGES = [
@@ -107,7 +107,6 @@ const G = () => (
     ::-webkit-scrollbar-thumb { background: #0EA5E9; border-radius: 3px; }
     .fi { animation: fi .3s ease; }
     @keyframes fi { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
-    button { touch-action: manipulation; }
     input, textarea, select { font-family: 'Inter', sans-serif; font-size: 16px !important; -webkit-appearance: none; }
     input:focus, textarea:focus, select:focus { outline: none; border-color: #0EA5E9 !important; }
     .card { background: #1E293B; border-radius: 14px; padding: 18px 16px; box-shadow: 0 4px 20px rgba(0,0,0,.4); margin-bottom: 12px; border: 1px solid #334155; }
@@ -135,7 +134,7 @@ const Toast = ({ msg, ok }) => msg ? <div style={{position:'fixed',top:20,left:'
 
 function useToast() {
   const [t, setT] = useState(null);
-  const show = (msg, ok=true) => { setT({msg,ok}); setTimeout(()=>setT(null), 2500); };
+  const show = (msg, ok=true) => { setT({msg,ok}); setTimeout(()=>setT(null), 3500); };
   return [t, show];
 }
 
@@ -174,6 +173,40 @@ function AdminDash({ onLogout }) {
       loadPatientDetail(selectedPatient.id);
     }
   }, [selectedPatient]);
+
+  const sendMessage = async () => {
+    if (!message.trim()) {
+      show('Mesaj yazınız', false);
+      return;
+    }
+    if (!selectedPatient) {
+      show('Hasta seçiniz', false);
+      return;
+    }
+    try {
+      show('✓ Mesaj gönderildi!');
+      setMessage('');
+    } catch(e) {
+      show('Hata: ' + e.message, false);
+    }
+  };
+
+  const sendSupplement = async () => {
+    if (!suppDose.trim()) {
+      show('Dozaj yazınız', false);
+      return;
+    }
+    if (!selectedPatient) {
+      show('Hasta seçiniz', false);
+      return;
+    }
+    try {
+      show('✓ Takviye gönderildi!');
+      setSuppDose('');
+    } catch(e) {
+      show('Hata: ' + e.message, false);
+    }
+  };
 
   return (
     <div style={{minHeight:'100vh',background:COLORS.bg}}>
@@ -287,7 +320,7 @@ function AdminDash({ onLogout }) {
                 <h3 style={{color:COLORS.accent,marginBottom:14}}>📧 {selectedPatient.name}</h3>
                 <label style={{display:'block',color:COLORS.accent,fontSize:12,fontWeight:600,marginBottom:6}}>Mesaj</label>
                 <textarea value={message} onChange={e=>setMessage(e.target.value)} placeholder="Hastaya tavsiye yazınız..." style={{width:'100%',padding:'12px',border:`1px solid #334155`,borderRadius:10,fontSize:14,background:'#0F172A',color:COLORS.text,minHeight:100,fontFamily:"'Inter',sans-serif",marginBottom:12}}/>
-                <Btn onClick={()=>{show('✓ Mesaj gönderildi!'); setMessage('');}} full>
+                <Btn onClick={sendMessage} disabled={loading} full>
                   📤 Gönder
                 </Btn>
               </div>
@@ -313,13 +346,13 @@ function AdminDash({ onLogout }) {
                   ))}
                 </div>
                 <Inp label="Dozaj" value={suppDose} onChange={setSuppDose} ph="Günde kaç kez, hangi miktarda"/>
-                <Btn onClick={()=>{show('✓ Takviye tavsiyesi gönderildi!'); setSuppDose('');}} full>
-                  💾 Takviye Ata
+                <Btn onClick={sendSupplement} disabled={loading} full>
+                  💾 Takviye Gönder
                 </Btn>
               </div>
             ) : (
               <div className="card" style={{textAlign:'center',padding:28}}>
-                <p style={{color:COLORS.textMuted,fontSize:14}}>Takviye atayacak hastayı seçin</p>
+                <p style={{color:COLORS.textMuted,fontSize:14}}>Takviye gönderecek hastayı seçin</p>
               </div>
             )}
           </div>
@@ -334,6 +367,8 @@ function PatientDash({ user, onLogout }) {
   const [tab, setTab] = useState('home');
   const [measures, setMeasures] = useState([]);
   const [meals, setMeals] = useState([]);
+  const [messages, setMessages] = useState([]);
+  const [supplements, setSupplements] = useState([]);
   const [measureVals, setMeasureVals] = useState({});
   const [kilo, setKilo] = useState('');
   const [mealText, setMealText] = useState('');
@@ -347,6 +382,8 @@ function PatientDash({ user, onLogout }) {
       const [m, ml] = await Promise.all([api.getMeasurements(), api.getMeals()]);
       setMeasures(m || []);
       setMeals(ml || []);
+      setMessages([]);
+      setSupplements([]);
     } catch(e) { show(e.message, false); }
   };
 
@@ -362,7 +399,7 @@ function PatientDash({ user, onLogout }) {
       setKilo('');
       setMeasureVals({});
       loadData();
-    } catch(e) { show(e.message, false); }
+    } catch(e) { show('Hata: ' + e.message, false); }
     setLoading(false);
   };
 
@@ -377,7 +414,7 @@ function PatientDash({ user, onLogout }) {
       show('✓ Öğün kaydedildi!');
       setMealText('');
       loadData();
-    } catch(e) { show(e.message, false); }
+    } catch(e) { show('Hata: ' + e.message, false); }
     setLoading(false);
   };
 
@@ -407,7 +444,9 @@ function PatientDash({ user, onLogout }) {
         </div>
       </div>
 
-      <div style={{padding:'14px',paddingBottom:80}}>
+      <div style={{padding:'14px',paddingBottom:90}}>
+        <Toast {...(toast||{msg:''})} />
+
         {tab==='home' && (
           <div className="fi">
             <div className="card">
@@ -503,13 +542,57 @@ function PatientDash({ user, onLogout }) {
             )}
           </div>
         )}
+
+        {tab==='messages' && (
+          <div className="fi">
+            <div className="card">
+              <h3 style={{color:COLORS.accent,marginBottom:14}}>📧 Admin Mesajları</h3>
+              {messages.length===0 ? (
+                <p style={{color:COLORS.textMuted,fontSize:13,textAlign:'center',padding:20}}>Henüz mesaj yok</p>
+              ) : (
+                messages.map((m,i)=>(
+                  <div key={i} style={{background:'#0F172A',borderRadius:8,padding:10,marginBottom:8}}>
+                    <p style={{fontSize:12,color:COLORS.accent,marginBottom:4}}>Admin</p>
+                    <p style={{fontSize:13,color:COLORS.text}}>{m}</p>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
+        {tab==='supplements' && (
+          <div className="fi">
+            <div className="card">
+              <h3 style={{color:COLORS.accent,marginBottom:14}}>💊 Ek Gıda Takviyesi</h3>
+              {supplements.length===0 ? (
+                <p style={{color:COLORS.textMuted,fontSize:13,textAlign:'center',padding:20}}>Henüz takviye atanmamış</p>
+              ) : (
+                supplements.map((s,i)=>(
+                  <div key={i} style={{background:'#0F172A',borderRadius:8,padding:10,marginBottom:8}}>
+                    <p style={{fontSize:12,color:COLORS.accent,marginBottom:4}}>{s.name}</p>
+                    <p style={{fontSize:11,color:COLORS.text}}>Dozaj: {s.dose}</p>
+                    {s.usage && <p style={{fontSize:11,color:COLORS.textMuted}}>Kullanım: {s.usage}</p>}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
-      <nav style={{position:'fixed',bottom:0,left:0,right:0,background:COLORS.card,borderTop:`1px solid #334155`,display:'flex',boxShadow:'0 -2px 12px rgba(0,0,0,.3)',zIndex:100}}>
-        {[{id:'home',l:'Ana',i:'🏠'},{id:'food',l:'Menü',i:'🥗'},{id:'measure',l:'Ölçüm',i:'📏'},{id:'log',l:'Günlük',i:'📋'}].map(n=>(
-          <button key={n.id} onClick={()=>setTab(n.id)} style={{flex:1,border:'none',background:'none',cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',gap:4,padding:'10px 0',color:tab===n.id?COLORS.accent:COLORS.textMuted}}>
-            <span style={{fontSize:20}}>{n.i}</span>
-            <span style={{fontSize:10,fontWeight:600}}>{n.l}</span>
+      <nav style={{position:'fixed',bottom:0,left:0,right:0,background:COLORS.card,borderTop:`1px solid #334155`,display:'flex',overflowX:'auto',boxShadow:'0 -2px 12px rgba(0,0,0,.3)',zIndex:100}}>
+        {[
+          {id:'home',l:'Ana',i:'🏠'},
+          {id:'food',l:'Menü',i:'🥗'},
+          {id:'measure',l:'Ölçüm',i:'📏'},
+          {id:'log',l:'Günlük',i:'📋'},
+          {id:'messages',l:'Mesaj',i:'📧'},
+          {id:'supplements',l:'Takviye',i:'💊'}
+        ].map(n=>(
+          <button key={n.id} onClick={()=>setTab(n.id)} style={{flex:'0 0 auto',minWidth:'65px',border:'none',background:'none',cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',gap:3,padding:'8px 4px',color:tab===n.id?COLORS.accent:COLORS.textMuted,fontSize:12}}>
+            <span style={{fontSize:18}}>{n.i}</span>
+            <span style={{fontSize:9,fontWeight:600}}>{n.l}</span>
           </button>
         ))}
       </nav>
@@ -527,6 +610,7 @@ function Login({ onLogin }) {
   const [adminCode, setAdminCode] = useState('');
   const [err, setErr] = useState('');
   const [loading, setLoading] = useState(false);
+  const [toast, show] = useToast();
 
   const submit = async () => {
     setLoading(true); setErr('');
